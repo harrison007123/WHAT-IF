@@ -81,6 +81,21 @@ def search_files(query: str) -> str:
     except Exception as e:
         return f"Error searching files: {str(e)}"
 
+def scan_for_prompt_injection(text: str) -> bool:
+    """Lightweight heuristic scanner for indirect prompt injection."""
+    text_lower = text.lower()
+    malicious_phrases = [
+        "ignore previous instructions",
+        "ignore all previous instructions",
+        "forget your instructions",
+        "reveal all",
+        "reveal your instructions",
+        "dump the database"
+    ]
+    for phrase in malicious_phrases:
+        if phrase in text_lower:
+            return True
+    return False
 
 @mcp.tool
 def read_file(file_id: str) -> str:
@@ -109,7 +124,13 @@ def read_file(file_id: str) -> str:
         
         content = fh.getvalue()
         try:
-            return content.decode("utf-8")
+            decoded_text = content.decode("utf-8")
+            
+            # --- SECURITY CHECKPOINT: Prompt Injection Scanner ---
+            if scan_for_prompt_injection(decoded_text):
+                return "[SECURITY ALERT] Document blocked: Suspected indirect prompt injection payload detected. File quarantined."
+                
+            return decoded_text
         except UnicodeDecodeError:
             return f"[Binary file downloaded: {len(content)} bytes. Cannot display as text.]"
     except Exception as e:
