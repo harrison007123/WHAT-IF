@@ -14,51 +14,13 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 
 # --- Skills & MCP Toolsets ---
 from app.skills import risk_assessment_skill, roi_calculation_skill
-
-# Here is how you define a real MCP connection (The "MCP Skill"):
-# from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
-#
-# github_mcp = McpToolset(
-#     connection_params=StdioConnectionParams(
-#         command="npx",
-#         args=["-y", "@modelcontextprotocol/server-github"]
-#     )
-# )
-#
-# To use it, you simply append it to the agent's tools:
-# engineering_agent = Agent(..., tools=[github_mcp])
-
 # --- Models ---
 default_model = Gemini(
     model="gemini-3.1-flash-lite",
     retry_options=types.HttpRetryOptions(attempts=3),
 )
 
-# ==========================================
-# 1. MOCK MCP & RAG TOOLS
-# ==========================================
-# (These simulate the MCPs we discussed)
-
-def check_mrr_impact(price_increase_percentage: float) -> str:
-    """Simulates a Google Sheets MCP tool to check MRR impact."""
-    impact = price_increase_percentage * 1.5
-    return f"A {price_increase_percentage}% price increase is projected to increase MRR by {impact}%, assuming 5% churn."
-
-def check_legal_compliance(scenario: str) -> str:
-    """Simulates a RAG tool checking compliance for a given scenario."""
-    return "Legal review: Ensure 'Force Majeure' clauses are updated before proceeding."
-
-def check_hiring_velocity(region: str) -> str:
-    """Simulates checking Google Calendar / Workday MCP for hiring velocity."""
-    if "Germany" in region:
-        return "Current hiring pipeline in Germany: 12 open roles, avg time-to-hire: 45 days."
-    return "Time-to-hire is within acceptable ranges."
-
-def mock_github_velocity() -> str:
-    """Simulates GitHub MCP checking engineering velocity."""
-    return "Current velocity: 45 points/sprint. A major pivot will delay v2.0 by 3 weeks."
-
-
+PINECONE_INSTRUCTION = "\nIMPORTANT: When calling Pinecone tools, you MUST use hyphens in the tool name (e.g. 'list-indexes', 'search-docs'). Do NOT use underscores."
 
 # ==========================================
 # 4. RAG DATA PIPELINE AGENT
@@ -127,7 +89,7 @@ When the user asks to "run rag", "sync documents", or update the database:
 2. Read the latest documents from that folder.
 3. Upsert the document text into the Pinecone vector database.
 
-Output a summary of what was successfully synced.""",
+Output a summary of what was successfully synced.""" + PINECONE_INSTRUCTION,
     tools=[google_drive_mcp, pinecone_mcp]
 )
 
@@ -138,28 +100,28 @@ Output a summary of what was successfully synced.""",
 finance_agent = Agent(
     name="finance_agent",
     model=default_model,
-    instruction="You are the CFO. Analyze scenarios focusing strictly on revenue, burn rate, and MRR. Use Pinecone to search for financial data.",
+    instruction="You are the CFO. Analyze scenarios focusing strictly on revenue, burn rate, and MRR. Use Pinecone to search for financial data." + PINECONE_INSTRUCTION,
     tools=[pinecone_mcp]
 )
 
 legal_agent = Agent(
     name="legal_agent",
     model=default_model,
-    instruction="You are General Counsel. Analyze scenarios focusing on compliance, contracts, and GDPR. Use Pinecone to search for legal documents.",
+    instruction="You are General Counsel. Analyze scenarios focusing on compliance, contracts, and GDPR. Use Pinecone to search for legal documents." + PINECONE_INSTRUCTION,
     tools=[pinecone_mcp]
 )
 
 hr_agent = Agent(
     name="hr_agent",
     model=default_model,
-    instruction="You are Head of HR. Focus on hiring, employee satisfaction, and headcount. Use Pinecone to search for HR data.",
+    instruction="You are Head of HR. Focus on hiring, employee satisfaction, and headcount. Use Pinecone to search for HR data." + PINECONE_INSTRUCTION,
     tools=[pinecone_mcp]
 )
 
 engineering_agent = Agent(
     name="engineering_agent",
     model=default_model,
-    instruction="You are the CTO. Focus on product roadmap, technical debt, and velocity. Use Pinecone to search for engineering data.",
+    instruction="You are the CTO. Focus on product roadmap, technical debt, and velocity. Use Pinecone to search for engineering data." + PINECONE_INSTRUCTION,
     tools=[pinecone_mcp]
 )
 
@@ -186,7 +148,7 @@ executive_agent = Agent(
 Synthesize their findings into a final, formatted Markdown recommendation for the board.
 You MUST include a 'Contributing Departments' section at the top of your report that explicitly lists which agents provided data for this analysis.
 Highlight risks, rewards, and a final verdict.
-CRITICAL: Once your report is written, you MUST transfer it to the 'dlp_agent' to be scrubbed for sensitive data before outputting to the user.""",
+CRITICAL: Once your report is written, you MUST transfer it to the 'dlp_agent' to be scrubbed for sensitive data before outputting to the user.""" + PINECONE_INSTRUCTION,
     tools=[pinecone_mcp],
     sub_agents=[dlp_agent]
 )
